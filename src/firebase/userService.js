@@ -6,7 +6,8 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy
+  orderBy,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from './config';
 
@@ -30,10 +31,29 @@ export const getAllUsers = async () => {
 export const updateUserStatus = async (userId, status) => {
   try {
     const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, { status });
+    await updateDoc(userRef, { 
+      status,
+      updatedAt: serverTimestamp()
+    });
     return true;
   } catch (error) {
     console.error('Error updating user status:', error);
+    throw error;
+  }
+};
+
+// Update user role
+export const updateUserRole = async (userId, role) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { 
+      role,
+      isAdmin: role === 'admin',
+      updatedAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error updating user role:', error);
     throw error;
   }
 };
@@ -60,6 +80,7 @@ export const getUserStats = async () => {
     return {
       totalUsers: users.length,
       activeUsers: users.filter(user => user.status === 'active').length,
+      adminUsers: users.filter(user => user.isAdmin === true).length,
       newUsers: users.filter(user => {
         const createdAt = user.createdAt?.toDate();
         const oneWeekAgo = new Date();
@@ -69,6 +90,24 @@ export const getUserStats = async () => {
     };
   } catch (error) {
     console.error('Error getting user stats:', error);
+    throw error;
+  }
+};
+
+// Get user by ID
+export const getUserById = async (userId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDocs(userRef);
+    if (userDoc.exists()) {
+      return {
+        id: userDoc.id,
+        ...userDoc.data()
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting user:', error);
     throw error;
   }
 }; 

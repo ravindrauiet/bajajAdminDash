@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { Grid, Paper, Typography, Box } from '@mui/material';
 import {
   People as PeopleIcon,
-  ShoppingCart as ShoppingCartIcon,
-  AttachMoney as AttachMoneyIcon,
+  AdminPanelSettings as AdminIcon,
   TrendingUp as TrendingUpIcon,
+  CheckCircle as ActiveIcon,
 } from '@mui/icons-material';
 import {
   AreaChart,
@@ -42,6 +42,7 @@ function Dashboard() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
+    adminUsers: 0,
     newUsers: 0
   });
   const [loading, setLoading] = useState(true);
@@ -65,21 +66,28 @@ function Dashboard() {
   return (
     <Box>
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Users"
             value={stats.totalUsers}
             icon={<PeopleIcon sx={{ color: 'primary.main' }} />}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Active Users"
             value={stats.activeUsers}
-            icon={<ShoppingCartIcon sx={{ color: 'success.main' }} />}
+            icon={<ActiveIcon sx={{ color: 'success.main' }} />}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Admin Users"
+            value={stats.adminUsers}
+            icon={<AdminIcon sx={{ color: 'warning.main' }} />}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="New Users (Last 7 Days)"
             value={stats.newUsers}

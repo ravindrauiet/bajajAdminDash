@@ -1,17 +1,41 @@
 import { useState, useEffect } from 'react';
-import { Box, Paper, Typography, IconButton, Tooltip, Snackbar, Alert } from '@mui/material';
+import { 
+  Box, 
+  Paper, 
+  Typography, 
+  IconButton, 
+  Tooltip, 
+  Snackbar, 
+  Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
+} from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material';
-import { getAllUsers, updateUserStatus, deleteUser } from '../firebase/userService';
+import { getAllUsers, updateUserStatus, updateUserRole, deleteUser } from '../firebase/userService';
 
 const columns = [
   { field: 'id', headerName: 'ID', width: 90 },
-  { field: 'firstName', headerName: 'First name', width: 130 },
-  { field: 'lastName', headerName: 'Last name', width: 130 },
+  { field: 'displayName', headerName: 'Name', width: 150 },
+  { field: 'email', headerName: 'Email', width: 200 },
   {
-    field: 'email',
-    headerName: 'Email',
-    width: 200,
+    field: 'role',
+    headerName: 'Role',
+    width: 130,
+    renderCell: (params) => (
+      <FormControl size="small" sx={{ minWidth: 120 }}>
+        <Select
+          value={params.value || 'user'}
+          onChange={(e) => handleRoleChange(params.row.id, e.target.value)}
+          size="small"
+        >
+          <MenuItem value="user">User</MenuItem>
+          <MenuItem value="admin">Admin</MenuItem>
+        </Select>
+      </FormControl>
+    ),
   },
   {
     field: 'status',
@@ -26,9 +50,18 @@ const columns = [
           borderRadius: '4px',
         }}
       >
-        {params.value}
+        {params.value || 'inactive'}
       </Box>
     ),
+  },
+  {
+    field: 'createdAt',
+    headerName: 'Created At',
+    width: 180,
+    valueGetter: (params) => {
+      const date = params.value?.toDate();
+      return date ? date.toLocaleString() : 'N/A';
+    },
   },
   {
     field: 'actions',
@@ -36,9 +69,9 @@ const columns = [
     width: 130,
     renderCell: (params) => (
       <Box>
-        <Tooltip title="Edit">
+        <Tooltip title="Toggle Status">
           <IconButton
-            onClick={() => handleEdit(params.row)}
+            onClick={() => handleStatusChange(params.row)}
             size="small"
           >
             <EditIcon />
@@ -81,7 +114,7 @@ function Users() {
     }
   };
 
-  const handleEdit = async (user) => {
+  const handleStatusChange = async (user) => {
     try {
       const newStatus = user.status === 'active' ? 'inactive' : 'active';
       await updateUserStatus(user.id, newStatus);
@@ -89,6 +122,16 @@ function Users() {
       showSnackbar('User status updated successfully', 'success');
     } catch (err) {
       showSnackbar('Failed to update user status', 'error');
+    }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      await updateUserRole(userId, newRole);
+      await fetchUsers();
+      showSnackbar('User role updated successfully', 'success');
+    } catch (err) {
+      showSnackbar('Failed to update user role', 'error');
     }
   };
 

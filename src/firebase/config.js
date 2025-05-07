@@ -2,21 +2,24 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
+// Firebase configuration
 const firebaseConfig = {
-  // Copy your Firebase config from your main app
-  // You can find this in your main app's Firebase configuration
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBGeNqnvp7SoLLJWNAofH70C6aH3AZhuY4",
+  authDomain: "tmsquareapp-df8f8.firebaseapp.com",
+  projectId: "tmsquareapp-df8f8",
+  storageBucket: "tmsquareapp-df8f8.firebasestorage.app",
+  messagingSenderId: "540362960766",
+  appId: "1:540362960766:web:e543f09786c61b067e4d2f"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
 
+// Initialize Firebase Authentication and get a reference to the service
+const auth = getAuth(app);
+
+// Initialize Cloud Firestore and get a reference to the service
+const db = getFirestore(app);
+
+export { auth, db };
 export default app; 
