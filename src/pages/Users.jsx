@@ -197,9 +197,24 @@ function Users() {
       if (result.success) {
         await fetchUsers();
         setEditDialogOpen(false);
-        showSnackbar('User updated successfully', 'success');
+        
+        // Handle case with warnings
+        if (result.warnings && result.warnings.length > 0) {
+          // Show warning message but still indicate success
+          showSnackbar(
+            `User updated with some limitations: ${result.warnings.join(', ')}`, 
+            'warning'
+          );
+        } else {
+          showSnackbar('User updated successfully', 'success');
+        }
       } else {
-        showSnackbar(result.error || 'Failed to update user', 'error');
+        // Handle validation errors specifically
+        if (result.validationErrors && result.validationErrors.length > 0) {
+          showSnackbar(`Validation error: ${result.validationErrors.join(', ')}`, 'error');
+        } else {
+          showSnackbar(result.error || 'Failed to update user', 'error');
+        }
       }
     } catch (err) {
       console.error('Error updating user:', err);
@@ -289,13 +304,17 @@ function Users() {
             label="Aadhar Card Number"
             value={editForm.aadharCard}
             onChange={(e) => setEditForm({ ...editForm, aadharCard: e.target.value })}
+            helperText="Enter 12 digits without spaces"
+            inputProps={{ maxLength: 12 }}
           />
           <TextField
             margin="normal"
             fullWidth
             label="PAN Card Number"
             value={editForm.panCard}
-            onChange={(e) => setEditForm({ ...editForm, panCard: e.target.value })}
+            onChange={(e) => setEditForm({ ...editForm, panCard: e.target.value.toUpperCase() })}
+            helperText="Format: ABCDE1234F (5 letters, 4 digits, 1 letter)"
+            inputProps={{ maxLength: 10 }}
           />
           <FormControl fullWidth margin="normal">
             <InputLabel>Role</InputLabel>

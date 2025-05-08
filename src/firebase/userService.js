@@ -119,43 +119,68 @@ export const updateUser = async (userId, userData) => {
     console.log('📝 Updating user details:', { userId, ...userData });
     const userRef = doc(db, 'users', userId);
     
+    // Validate government ID formats if provided
+    const validationErrors = [];
+    
+    // Validate Aadhar card (should be 12 digits)
+    if (userData.aadharCard && userData.aadharCard.trim() !== '') {
+      const aadharPattern = /^\d{12}$/;
+      if (!aadharPattern.test(userData.aadharCard.replace(/\s/g, ''))) {
+        validationErrors.push('Aadhar card should be 12 digits');
+      }
+    }
+    
+    // Validate PAN card (should be 10 alphanumeric characters in specific format)
+    if (userData.panCard && userData.panCard.trim() !== '') {
+      const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+      if (!panPattern.test(userData.panCard.replace(/\s/g, ''))) {
+        validationErrors.push('PAN card should be in format ABCDE1234F (5 letters, 4 digits, 1 letter)');
+      }
+    }
+    
+    // Return validation errors if any
+    if (validationErrors.length > 0) {
+      console.error('❌ Validation errors:', validationErrors);
+      return { 
+        success: false, 
+        error: 'Validation failed', 
+        validationErrors 
+      };
+    }
+    
     // Prepare data for update
     const updateData = {
       ...userData,
       updatedAt: serverTimestamp()
     };
     
-    // Handle password update if provided
-    let passwordUpdateSuccess = true;
-    if (userData.password && userData.password.trim() !== '') {
-      try {
-        // For admin changing user password, we need to use admin auth methods
-        // This requires Firebase Admin SDK which should be used on server-side
-        // For this client-side implementation, we'll just update the Firestore document
-        // and note that proper password change would require a backend API
-        console.log('Password change requested - would require server-side admin API');
-      } catch (passwordError) {
-        console.error('❌ Error updating password:', passwordError);
-        passwordUpdateSuccess = false;
-      }
+    // Set proper isAdmin flag based on role
+    if (userData.role) {
+      updateData.isAdmin = userData.role === 'admin';
     }
     
-    // Remove password from Firestore update
-    delete updateData.password;
+    // Use enhanced API from firestoreApi
+    const result = await import('../api/firestoreApi').then(module => 
+      module.updateUserData(userId, updateData)
+    );
     
-    await updateDoc(userRef, updateData);
-    console.log('✅ User details updated successfully');
-    
-    if (passwordUpdateSuccess) {
+    // Pass through the result
+    if (result.success) {
+      console.log('✅ User details updated successfully');
+      // Check for warnings
+      if (result.warnings && result.warnings.length > 0) {
+        return { 
+          success: true,
+          warnings: result.warnings 
+        };
+      }
       return { success: true };
     } else {
-      return { 
-        success: true, 
-        warning: 'User data updated but password change requires admin API' 
-      };
+      console.error('❌ Error updating user details:', result.error);
+      return { success: false, error: result.error };
     }
   } catch (error) {
-    console.error('❌ Error updating user details:', error);
+    console.error('❌ Error in updateUser:', error);
     return { success: false, error: error.message };
   }
 }; 

@@ -11,7 +11,14 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import { updatePassword } from 'firebase/auth';
+import { 
+  updatePassword, 
+  updateEmail, 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  EmailAuthProvider, 
+  reauthenticateWithCredential 
+} from 'firebase/auth';
 import { auth } from '../firebase/config';
 
 // User Management Functions
@@ -84,21 +91,81 @@ export const updateUserData = async (userId, userData) => {
   try {
     console.log('📝 Updating user:', { userId, ...userData });
     const userRef = doc(db, 'users', userId);
+    
+    // Get current user data to compare changes
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+      console.error('❌ User document not found');
+      return { success: false, error: 'User not found' };
+    }
+    
+    const currentUserData = userSnap.data();
     const updatedData = { ...userData, updatedAt: serverTimestamp() };
-    delete updatedData.password; // Remove password from Firestore update
-    await updateDoc(userRef, updatedData);
-
-    // If password is provided, update it in Firebase Auth
-    if (userData.password) {
-      const user = auth.currentUser;
-      if (user) {
-        await updatePassword(user, userData.password);
-        console.log('✅ User password updated successfully');
+    
+    // Remove sensitive fields from Firestore update
+    const { password, ...firestoreData } = updatedData;
+    
+    // Track operations
+    const operations = [];
+    
+    // Handle password update if provided
+    if (password && password.trim() !== '') {
+      try {
+        console.log('🔑 Password update requested for user:', userId);
+        // In a real admin scenario, this would be handled by Firebase Admin SDK
+        // on a secure server. For this frontend implementation, we'll just
+        // update the Firestore document and note the limitation.
+        operations.push({
+          type: 'password',
+          success: false,
+          message: 'Password updates for other users require Firebase Admin SDK on a backend server'
+        });
+      } catch (passwordError) {
+        console.error('❌ Error with password update:', passwordError);
+        operations.push({
+          type: 'password',
+          success: false,
+          error: passwordError.message
+        });
       }
     }
-
-    console.log('✅ User updated successfully');
-    return { success: true };
+    
+    // Handle identity document updates
+    if (firestoreData.aadharCard !== currentUserData.aadharCard) {
+      console.log('📋 Aadhar card update detected');
+      operations.push({
+        type: 'aadharCard',
+        success: true,
+        message: 'Aadhar card information updated'
+      });
+    }
+    
+    if (firestoreData.panCard !== currentUserData.panCard) {
+      console.log('📋 PAN card update detected');
+      operations.push({
+        type: 'panCard',
+        success: true,
+        message: 'PAN card information updated'
+      });
+    }
+    
+    // Update Firestore document
+    await updateDoc(userRef, firestoreData);
+    console.log('✅ User data updated in Firestore');
+    operations.push({
+      type: 'firestoreData',
+      success: true,
+      message: 'User profile data updated successfully'
+    });
+    
+    // Prepare response
+    const hasWarnings = operations.some(op => !op.success);
+    
+    return { 
+      success: true, 
+      operations,
+      warnings: hasWarnings ? operations.filter(op => !op.success).map(op => op.message || op.error) : null
+    };
   } catch (error) {
     console.error('❌ Error updating user:', error);
     return { success: false, error: error.message };
