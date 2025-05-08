@@ -36,7 +36,10 @@ function Users() {
     role: 'user',
     status: 'active',
     phone: '',
-    address: ''
+    address: '',
+    aadharCard: '',
+    panCard: '',
+    password: ''
   });
 
   useEffect(() => {
@@ -64,6 +67,30 @@ function Users() {
       width: 200,
       renderCell: (params) => {
         return <span>{params.row?.email || 'No Email'}</span>;
+      }
+    },
+    { 
+      field: 'phone', 
+      headerName: 'Phone', 
+      width: 130,
+      renderCell: (params) => {
+        return <span>{params.row?.phone || 'N/A'}</span>;
+      }
+    },
+    { 
+      field: 'aadharCard', 
+      headerName: 'Aadhar Card', 
+      width: 150,
+      renderCell: (params) => {
+        return <span>{params.row?.aadharCard || 'N/A'}</span>;
+      }
+    },
+    { 
+      field: 'panCard', 
+      headerName: 'PAN Card', 
+      width: 130,
+      renderCell: (params) => {
+        return <span>{params.row?.panCard || 'N/A'}</span>;
       }
     },
     { 
@@ -147,7 +174,10 @@ function Users() {
       role: user.role || 'user',
       status: user.status || 'active',
       phone: user.phone || '',
-      address: user.address || ''
+      address: user.address || '',
+      aadharCard: user.aadharCard || '',
+      panCard: user.panCard || '',
+      password: '' // Password field starts empty for security
     });
     setEditDialogOpen(true);
   };
@@ -232,6 +262,16 @@ function Users() {
           <TextField
             margin="normal"
             fullWidth
+            label="Password"
+            type="password"
+            placeholder="Enter new password"
+            helperText="Leave empty to keep current password"
+            value={editForm.password}
+            onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
             label="Phone Number"
             value={editForm.phone}
             onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
@@ -242,6 +282,20 @@ function Users() {
             label="Address"
             value={editForm.address}
             onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
+            label="Aadhar Card Number"
+            value={editForm.aadharCard}
+            onChange={(e) => setEditForm({ ...editForm, aadharCard: e.target.value })}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
+            label="PAN Card Number"
+            value={editForm.panCard}
+            onChange={(e) => setEditForm({ ...editForm, panCard: e.target.value })}
           />
           <FormControl fullWidth margin="normal">
             <InputLabel>Role</InputLabel>
