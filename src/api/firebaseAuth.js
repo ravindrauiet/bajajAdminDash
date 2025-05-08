@@ -7,9 +7,12 @@ import { auth } from '../firebase/config';
 import { getUserByEmail, createOrUpdateUser } from './firestoreApi';
 import { serverTimestamp } from 'firebase/firestore';
 
-// Admin credentials
+// Admin credentials (for demo purposes - should use environment variables in production)
 const ADMIN_EMAIL = 'admin@gmail.com';
 const ADMIN_PASSWORD = '123456';
+
+// Sample sub-admin emails (for demo purposes)
+const SUB_ADMIN_EMAILS = ['mayank@gmail.com', 'rahul@gmail.com'];
 
 export const loginWithEmailAndPassword = async (email, password) => {
   try {
@@ -25,19 +28,23 @@ export const loginWithEmailAndPassword = async (email, password) => {
     if (success) {
       console.log('📊 User data from Firestore:', userData);
       
-      // Check if user is admin
-      const isAdmin = userData?.isAdmin || email === ADMIN_EMAIL;
+      // Check user role
+      const isSuperAdmin = email === ADMIN_EMAIL || userData?.isSuperAdmin === true;
+      const isSubAdmin = SUB_ADMIN_EMAILS.includes(email) || userData?.role === 'subAdmin';
+      const isAdmin = isSuperAdmin || isSubAdmin;
       
       if (isAdmin) {
-        console.log('👑 Admin user verified');
+        console.log('👑 Admin user verified:', { isSuperAdmin, isSubAdmin });
         
-        // Ensure admin user has a complete profile in Firestore
+        // Ensure user has a complete profile in Firestore with proper role
+        const userRole = isSuperAdmin ? 'admin' : 'subAdmin';
         await createOrUpdateUser(userCredential.user.uid, {
           email: userCredential.user.email,
-          displayName: 'Admin User',
+          displayName: userData?.displayName || email.split('@')[0],
           isAdmin: true,
-          role: 'admin',
-          createdAt: serverTimestamp(),
+          isSuperAdmin: isSuperAdmin,
+          role: userRole,
+          createdAt: userData?.createdAt || serverTimestamp(),
           lastLogin: serverTimestamp()
         });
         
@@ -101,15 +108,21 @@ export const onAuthStateChange = (callback) => {
     if (user) {
       // Get user data from Firestore
       const { success, user: userData } = await getUserByEmail(user.email);
-      console.log('📊 User data from Firestore:', { success, isAdmin: userData?.isAdmin });
+      console.log('📊 User data from Firestore:', { success, userData });
       
-      // Check if user is admin
-      const isAdmin = userData?.isAdmin || user.email === ADMIN_EMAIL;
+      // Check user role
+      const isSuperAdmin = user.email === ADMIN_EMAIL || userData?.isSuperAdmin === true;
+      const isSubAdmin = SUB_ADMIN_EMAILS.includes(user.email) || userData?.role === 'subAdmin';
+      const isAdmin = isSuperAdmin || isSubAdmin;
       
       callback({
         currentUser: user,
         isAdmin,
-        userData: userData || null
+        userData: {
+          ...userData,
+          isSuperAdmin,
+          role: isSuperAdmin ? 'admin' : (isSubAdmin ? 'subAdmin' : 'user')
+        }
       });
     } else {
       callback({

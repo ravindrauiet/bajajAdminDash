@@ -7,10 +7,13 @@ import {
   query,
   where,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  getDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth } from './config';
 import { updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { createActivity } from './models';
 
 // Get all users
 export const getAllUsers = async () => {
@@ -24,6 +27,277 @@ export const getAllUsers = async () => {
     }));
   } catch (error) {
     console.error('Error fetching users:', error);
+    throw error;
+  }
+};
+
+// Get users assigned to a specific sub-admin
+export const getAssignedUsers = async (subAdminId) => {
+  try {
+    // Check if this is a super admin or sub-admin first
+    const adminRef = doc(db, 'users', subAdminId);
+    const adminDoc = await getDoc(adminRef);
+    
+    if (!adminDoc.exists()) {
+      console.error('Admin document not found');
+      return [];
+    }
+    
+    const adminData = adminDoc.data();
+    
+    // If this is a super admin, they don't have directly assigned users
+    // Return an empty array to prevent Firestore query errors
+    if (adminData.isSuperAdmin === true) {
+      console.log('Super admin detected in getAssignedUsers, returning empty array');
+      return [];
+    }
+    
+    // Get users assigned to this sub-admin
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef, 
+      where('assignedTo', '==', subAdminId),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching assigned users:', error);
+    throw error;
+  }
+};
+
+// Get all sub-admins
+export const getAllSubAdmins = async () => {
+  try {
+    const usersRef = collection(db, 'users');
+    const q = query(
+      usersRef, 
+      where('role', '==', 'subAdmin'),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error fetching sub-admins:', error);
+    throw error;
+  }
+};
+
+// Get a specific sub-admin
+export const getSubAdmin = async (subAdminId) => {
+  try {
+    const userRef = doc(db, 'users', subAdminId);
+    const userDoc = await getDoc(userRef);
+    
+    if (userDoc.exists() && userDoc.data().role === 'subAdmin') {
+      return {
+        id: userDoc.id,
+        ...userDoc.data()
+      };
+    }
+    
+    throw new Error('Sub-admin not found');
+  } catch (error) {
+    console.error('Error fetching sub-admin:', error);
+    throw error;
+  }
+};
+
+// Assign a user to a sub-admin
+export const assignUserToSubAdmin = async (userId, subAdminId, adminId) => {
+  try {
+    // Verify the sub-admin exists
+    const subAdminRef = doc(db, 'users', subAdminId);
+    const subAdminDoc = await getDoc(subAdminRef);
+    
+    if (!subAdminDoc.exists() || subAdminDoc.data().role !== 'subAdmin') {
+      throw new Error('Invalid sub-admin ID');
+    }
+    
+    // Update user's assignedTo field
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists() || userDoc.data().role !== 'user') {
+      throw new Error('Invalid user ID');
+    }
+    
+    // Update the user document
+    await updateDoc(userRef, { 
+      assignedTo: subAdminId,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Add this user to the sub-admin's assignedUsers array if not already there
+    const subAdminData = subAdminDoc.data();
+    const assignedUsers = subAdminData.assignedUsers || [];
+    
+    if (!assignedUsers.includes(userId)) {
+      await updateDoc(subAdminRef, {
+        assignedUsers: [...assignedUsers, userId],
+        updatedAt: serverTimestamp()
+      });
+    }
+    
+    // Add activity to user's history
+    const userData = userDoc.data();
+    const activity = createActivity(
+      userId, 
+      'assignment', 
+      `Assigned to ${subAdminData.displayName}`, 
+      adminId
+    );
+    
+    const activityHistory = userData.activityHistory || [];
+    await updateDoc(userRef, {
+      activityHistory: [activity, ...activityHistory]
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error assigning user to sub-admin:', error);
+    throw error;
+  }
+};
+
+// Unassign a user from a sub-admin
+export const unassignUser = async (userId, adminId) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('User not found');
+    }
+    
+    const userData = userDoc.data();
+    const currentSubAdminId = userData.assignedTo;
+    
+    if (currentSubAdminId) {
+      // Remove assignment from user
+      await updateDoc(userRef, { 
+        assignedTo: null,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Remove user from sub-admin's assignedUsers array
+      const subAdminRef = doc(db, 'users', currentSubAdminId);
+      const subAdminDoc = await getDoc(subAdminRef);
+      
+      if (subAdminDoc.exists()) {
+        const subAdminData = subAdminDoc.data();
+        const assignedUsers = subAdminData.assignedUsers || [];
+        
+        await updateDoc(subAdminRef, {
+          assignedUsers: assignedUsers.filter(id => id !== userId),
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      // Add activity to user's history
+      const activity = createActivity(
+        userId, 
+        'unassignment', 
+        'Removed from sub-admin assignment', 
+        adminId
+      );
+      
+      const activityHistory = userData.activityHistory || [];
+      await updateDoc(userRef, {
+        activityHistory: [activity, ...activityHistory]
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error unassigning user:', error);
+    throw error;
+  }
+};
+
+// Create a new sub-admin
+export const createSubAdmin = async (subAdminData, adminId) => {
+  try {
+    const { id, email, displayName } = subAdminData;
+    
+    const userRef = doc(db, 'users', id);
+    await setDoc(userRef, {
+      email,
+      displayName,
+      role: 'subAdmin',
+      isAdmin: true,
+      isSuperAdmin: false,
+      assignedUsers: [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error creating sub-admin:', error);
+    throw error;
+  }
+};
+
+// Check if user has access to another user's data
+export const canAccessUser = async (accessorId, targetUserId) => {
+  try {
+    // Get the accessor's data
+    const accessorRef = doc(db, 'users', accessorId);
+    const accessorDoc = await getDoc(accessorRef);
+    
+    if (!accessorDoc.exists()) {
+      return false;
+    }
+    
+    const accessorData = accessorDoc.data();
+    
+    // Super-admin can access any user
+    if (accessorData.isSuperAdmin) {
+      return true;
+    }
+    
+    // Sub-admin can only access assigned users
+    if (accessorData.role === 'subAdmin') {
+      const assignedUsers = accessorData.assignedUsers || [];
+      return assignedUsers.includes(targetUserId);
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error checking access rights:', error);
+    return false;
+  }
+};
+
+// Add a user activity
+export const addUserActivity = async (userId, type, description, performedBy) => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (!userDoc.exists()) {
+      throw new Error('User not found');
+    }
+    
+    const userData = userDoc.data();
+    const activity = createActivity(userId, type, description, performedBy);
+    const activityHistory = userData.activityHistory || [];
+    
+    await updateDoc(userRef, {
+      activityHistory: [activity, ...activityHistory]
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error adding user activity:', error);
     throw error;
   }
 };
@@ -49,7 +323,8 @@ export const updateUserRole = async (userId, role) => {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, { 
       role,
-      isAdmin: role === 'admin',
+      isAdmin: role === 'admin' || role === 'subAdmin',
+      isSuperAdmin: role === 'admin',
       updatedAt: serverTimestamp()
     });
     return true;
@@ -79,14 +354,15 @@ export const getUserStats = async () => {
     const users = querySnapshot.docs.map(doc => doc.data());
     
     return {
-      totalUsers: users.length,
-      activeUsers: users.filter(user => user.status === 'active').length,
+      totalUsers: users.filter(user => user.role === 'user').length,
+      activeUsers: users.filter(user => user.status === 'active' && user.role === 'user').length,
       adminUsers: users.filter(user => user.isAdmin === true).length,
+      subAdmins: users.filter(user => user.role === 'subAdmin').length,
       newUsers: users.filter(user => {
         const createdAt = user.createdAt?.toDate();
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        return createdAt && createdAt > oneWeekAgo;
+        return createdAt && createdAt > oneWeekAgo && user.role === 'user';
       }).length
     };
   } catch (error) {
@@ -99,7 +375,7 @@ export const getUserStats = async () => {
 export const getUserById = async (userId) => {
   try {
     const userRef = doc(db, 'users', userId);
-    const userDoc = await getDocs(userRef);
+    const userDoc = await getDoc(userRef);
     if (userDoc.exists()) {
       return {
         id: userDoc.id,
@@ -156,7 +432,8 @@ export const updateUser = async (userId, userData) => {
     
     // Set proper isAdmin flag based on role
     if (userData.role) {
-      updateData.isAdmin = userData.role === 'admin';
+      updateData.isAdmin = userData.role === 'admin' || userData.role === 'subAdmin';
+      updateData.isSuperAdmin = userData.role === 'admin';
     }
     
     // Use enhanced API from firestoreApi

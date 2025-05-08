@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import AdminDashboard from './pages/AdminDashboard';
+import SubAdminDashboard from './pages/SubAdminDashboard';
 
 const theme = createTheme({
   palette: {
@@ -21,12 +23,12 @@ const theme = createTheme({
   },
 });
 
-// Protected Route component
-function ProtectedRoute({ children }) {
-  const { currentUser, isAdmin, loading } = useAuth();
-  console.log('🔒 Protected Route Check:', { 
+// Protected Route component that checks for admin role
+function AdminRoute({ children }) {
+  const { currentUser, userData, loading } = useAuth();
+  console.log('🔒 Admin Route Check:', { 
     isAuthenticated: !!currentUser, 
-    isAdmin, 
+    isSuperAdmin: userData?.isSuperAdmin === true,
     isLoading: loading 
   });
 
@@ -34,7 +36,34 @@ function ProtectedRoute({ children }) {
     return <div>Loading...</div>;
   }
 
-  if (!currentUser || !isAdmin) {
+  if (!currentUser || !userData?.isAdmin) {
+    console.log('🚫 Access denied, redirecting to login');
+    return <Navigate to="/login" />;
+  }
+  
+  // Only super admins can access admin-only routes
+  if (userData?.isSuperAdmin !== true) {
+    console.log('🚫 Access denied for non-super admin, redirecting to dashboard');
+    return <Navigate to="/dashboard" />;
+  }
+
+  return children;
+}
+
+// Protected Route for any admin (super or sub)
+function AdminOrSubAdminRoute({ children }) {
+  const { currentUser, userData, loading } = useAuth();
+  console.log('🔒 Admin/SubAdmin Route Check:', { 
+    isAuthenticated: !!currentUser, 
+    isAdmin: userData?.isAdmin,
+    isLoading: loading 
+  });
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!currentUser || !userData?.isAdmin) {
     console.log('🚫 Access denied, redirecting to login');
     return <Navigate to="/login" />;
   }
@@ -42,50 +71,143 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+// Route that protects the dashboard and redirects based on role
+function DashboardRedirect() {
+  const { userData, loading } = useAuth();
+  
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  // Super admin should never see the regular dashboard
+  if (userData?.isSuperAdmin === true) {
+    console.log('Super admin accessing /dashboard - redirecting to /admin');
+    return <Navigate to="/admin" replace />;
+  }
+  
+  // Sub-admin should use their specific dashboard
+  if (userData?.role === 'subAdmin') {
+    console.log('Sub-admin accessing /dashboard - redirecting to /subadmin');
+    return <Navigate to="/subadmin" replace />;
+  }
+  
+  // Regular users see the standard dashboard
+  return (
+    <Layout>
+      <Dashboard />
+    </Layout>
+  );
+}
+
+// Index path component that redirects to the proper route based on user role
+function IndexRedirect() {
+  const { userData, loading } = useAuth();
+  
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  // Redirect to the appropriate dashboard based on role
+  if (userData?.isSuperAdmin === true) {
+    console.log('Redirecting super admin to /admin');
+    return <Navigate to="/admin" replace />;
+  }
+  
+  if (userData?.role === 'subAdmin') {
+    console.log('Redirecting sub-admin to /subadmin');
+    return <Navigate to="/subadmin" replace />;
+  }
+  
+  // Default route for normal users
+  console.log('Redirecting user to /dashboard');
+  return <Navigate to="/dashboard" replace />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      
+      {/* Root path decides where to redirect based on role */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </ProtectedRoute>
+          <AdminOrSubAdminRoute>
+            <IndexRedirect />
+          </AdminOrSubAdminRoute>
         }
       />
+      
+      {/* Dashboard - redirects based on role */}
+      <Route
+        path="/dashboard"
+        element={
+          <AdminOrSubAdminRoute>
+            <DashboardRedirect />
+          </AdminOrSubAdminRoute>
+        }
+      />
+      
+      {/* Admin-specific routes */}
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <Layout>
+              <AdminDashboard />
+            </Layout>
+          </AdminRoute>
+        }
+      />
+      
+      {/* Sub-admin dashboard */}
+      <Route
+        path="/subadmin"
+        element={
+          <AdminOrSubAdminRoute>
+            <Layout>
+              <SubAdminDashboard />
+            </Layout>
+          </AdminOrSubAdminRoute>
+        }
+      />
+      
+      {/* User management - accessible by any admin */}
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <AdminOrSubAdminRoute>
             <Layout>
               <Users />
             </Layout>
-          </ProtectedRoute>
+          </AdminOrSubAdminRoute>
         }
       />
+      
       <Route
         path="/analytics"
         element={
-          <ProtectedRoute>
+          <AdminOrSubAdminRoute>
             <Layout>
               <Analytics />
             </Layout>
-          </ProtectedRoute>
+          </AdminOrSubAdminRoute>
         }
       />
+      
       <Route
         path="/settings"
         element={
-          <ProtectedRoute>
+          <AdminOrSubAdminRoute>
             <Layout>
               <Settings />
             </Layout>
-          </ProtectedRoute>
+          </AdminOrSubAdminRoute>
         }
       />
+      
+      {/* Catch-all redirect to dashboard */}
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }

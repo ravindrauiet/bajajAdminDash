@@ -8,7 +8,8 @@ import {
   deleteDoc, 
   query, 
   where,
-  serverTimestamp 
+  serverTimestamp,
+  addDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { 
@@ -207,4 +208,95 @@ export const getUserByEmail = async (email) => {
     console.error('❌ Error fetching user by email:', error);
     return { success: false, error: error.message };
   }
-}; 
+};
+
+// Sub-admin management functions
+export const assignUserToSubAdmin = async (userId, subAdminId) => {
+  try {
+    console.log('📝 Assigning user to sub-admin:', { userId, subAdminId });
+    const userRef = doc(db, 'users', userId);
+    
+    // Update user document with assigned sub-admin
+    await updateDoc(userRef, {
+      assignedTo: subAdminId,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Log this assignment action
+    const assignmentLogRef = collection(db, 'assignmentLogs');
+    await addDoc(assignmentLogRef, {
+      userId,
+      subAdminId,
+      assignedBy: auth.currentUser.uid,
+      assignedAt: serverTimestamp()
+    });
+    
+    console.log('✅ User assigned to sub-admin successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error assigning user to sub-admin:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const unassignUserFromSubAdmin = async (userId) => {
+  try {
+    console.log('🔄 Unassigning user from sub-admin:', userId);
+    const userRef = doc(db, 'users', userId);
+    
+    // Remove sub-admin assignment
+    await updateDoc(userRef, {
+      assignedTo: null,
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log('✅ User unassigned successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error unassigning user:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getSubAdmins = async () => {
+  try {
+    console.log('🔍 Fetching all sub-admins');
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('role', '==', 'subAdmin'));
+    const querySnapshot = await getDocs(q);
+    
+    const subAdmins = [];
+    querySnapshot.forEach((doc) => {
+      subAdmins.push({ id: doc.id, ...doc.data() });
+    });
+    
+    console.log(`📊 Found ${subAdmins.length} sub-admins`);
+    return { success: true, subAdmins };
+  } catch (error) {
+    console.error('❌ Error fetching sub-admins:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const getUsersBySubAdmin = async (subAdminId) => {
+  try {
+    console.log('🔍 Fetching users assigned to sub-admin:', subAdminId);
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('assignedTo', '==', subAdminId));
+    const querySnapshot = await getDocs(q);
+    
+    const users = [];
+    querySnapshot.forEach((doc) => {
+      users.push({ id: doc.id, ...doc.data() });
+    });
+    
+    console.log(`📊 Found ${users.length} users assigned to sub-admin`);
+    return { success: true, users };
+  } catch (error) {
+    console.error('❌ Error fetching users by sub-admin:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Alias for updateUserData to maintain compatibility
+export const updateUser = updateUserData; 

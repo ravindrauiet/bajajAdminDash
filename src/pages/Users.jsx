@@ -20,16 +20,35 @@ import {
   Chip
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { Edit as EditIcon } from '@mui/icons-material';
-import { getAllUsers, updateUser } from '../firebase/userService';
+import { 
+  Edit as EditIcon, 
+  PersonAdd as AssignIcon,
+  PersonRemove as UnassignIcon 
+} from '@mui/icons-material';
+import { 
+  getAllUsers, 
+  updateUserData,
+  getUsersBySubAdmin,
+  getSubAdmins,
+  assignUserToSubAdmin,
+  unassignUserFromSubAdmin,
+  createOrUpdateUser
+} from '../api/firestoreApi';
+import { useAuth } from '../contexts/AuthContext';
 
 function Users() {
   const [users, setUsers] = useState([]);
+  const [subAdmins, setSubAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [assigningUser, setAssigningUser] = useState(null);
+  const [selectedSubAdmin, setSelectedSubAdmin] = useState('');
+  const { userData, isSuperAdmin, isSubAdmin } = useAuth();
+  
   const [editForm, setEditForm] = useState({
     displayName: '',
     email: '',
@@ -43,121 +62,212 @@ function Users() {
   });
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchData();
+  }, [isSuperAdmin, isSubAdmin, userData]);
 
-  // Define columns for the data grid
-  const columns = [
-    { 
-      field: 'id', 
-      headerName: 'ID', 
-      width: 90 
-    },
-    { 
-      field: 'displayName', 
-      headerName: 'Name', 
-      width: 150,
-      renderCell: (params) => {
-        return <span>{params.row?.displayName || 'No Name'}</span>;
-      }
-    },
-    { 
-      field: 'email', 
-      headerName: 'Email', 
-      width: 200,
-      renderCell: (params) => {
-        return <span>{params.row?.email || 'No Email'}</span>;
-      }
-    },
-    { 
-      field: 'phone', 
-      headerName: 'Phone', 
-      width: 130,
-      renderCell: (params) => {
-        return <span>{params.row?.phone || 'N/A'}</span>;
-      }
-    },
-    { 
-      field: 'aadharCard', 
-      headerName: 'Aadhar Card', 
-      width: 150,
-      renderCell: (params) => {
-        return <span>{params.row?.aadharCard || 'N/A'}</span>;
-      }
-    },
-    { 
-      field: 'panCard', 
-      headerName: 'PAN Card', 
-      width: 130,
-      renderCell: (params) => {
-        return <span>{params.row?.panCard || 'N/A'}</span>;
-      }
-    },
-    { 
-      field: 'role', 
-      headerName: 'Role', 
-      width: 130,
-      renderCell: (params) => {
-        const role = params.row?.role || 'user';
-        return (
-          <Chip 
-            label={role} 
-            color={
-              role === 'admin' ? 'primary' : 
-              role === 'subAdmin' ? 'secondary' : 
-              'default'
-            }
-            size="small"
-          />
-        );
-      }
-    },
-    { 
-      field: 'status', 
-      headerName: 'Status', 
-      width: 130,
-      renderCell: (params) => {
-        const status = params.row?.status || 'inactive';
-        return (
-          <Chip
-            label={status}
-            color={status === 'active' ? 'success' : 'error'}
-            size="small"
-          />
-        );
-      }
-    },
-    {
-      field: 'actions',
-      headerName: 'Edit',
-      width: 100,
-      renderCell: (params) => {
-        return (
-          <IconButton
-            onClick={() => handleEditUser(params.row)}
-            size="small"
-            color="primary"
-          >
-            <EditIcon />
-          </IconButton>
-        );
-      }
-    },
-  ];
-
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const usersData = await getAllUsers();
+      
+      // Fetch sub-admins if user is super admin
+      if (isSuperAdmin) {
+        const { success, subAdmins, error } = await getSubAdmins();
+        if (success) {
+          setSubAdmins(subAdmins);
+        } else {
+          console.error('Error fetching sub-admins:', error);
+        }
+      }
+      
+      // Fetch users based on role
+      let usersData = [];
+      if (isSuperAdmin) {
+        // Super admin sees all users
+        const { success, users, error } = await getAllUsers();
+        if (success) {
+          usersData = users;
+        } else {
+          throw new Error(error);
+        }
+      } else if (isSubAdmin && userData?.id) {
+        // Sub-admin sees only assigned users
+        const { success, users, error } = await getUsersBySubAdmin(userData.id);
+        if (success) {
+          usersData = users;
+        } else {
+          throw new Error(error);
+        }
+      }
+      
       console.log('Fetched users:', usersData);
       setUsers(usersData);
     } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('Failed to fetch users');
-      showSnackbar('Failed to fetch users', 'error');
+      console.error('Error fetching data:', err);
+      setError('Failed to fetch data');
+      showSnackbar('Failed to fetch data', 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Define columns for the data grid
+  const getColumns = () => {
+    const baseColumns = [
+      { 
+        field: 'id', 
+        headerName: 'ID', 
+        width: 90 
+      },
+      { 
+        field: 'displayName', 
+        headerName: 'Name', 
+        width: 150,
+        renderCell: (params) => {
+          return <span>{params.row?.displayName || 'No Name'}</span>;
+        }
+      },
+      { 
+        field: 'email', 
+        headerName: 'Email', 
+        width: 200,
+        renderCell: (params) => {
+          return <span>{params.row?.email || 'No Email'}</span>;
+        }
+      },
+      { 
+        field: 'phone', 
+        headerName: 'Phone', 
+        width: 130,
+        renderCell: (params) => {
+          return <span>{params.row?.phone || 'N/A'}</span>;
+        }
+      },
+      { 
+        field: 'aadharCard', 
+        headerName: 'Aadhar Card', 
+        width: 150,
+        renderCell: (params) => {
+          return <span>{params.row?.aadharCard || 'N/A'}</span>;
+        }
+      },
+      { 
+        field: 'panCard', 
+        headerName: 'PAN Card', 
+        width: 130,
+        renderCell: (params) => {
+          return <span>{params.row?.panCard || 'N/A'}</span>;
+        }
+      },
+      { 
+        field: 'role', 
+        headerName: 'Role', 
+        width: 130,
+        renderCell: (params) => {
+          const role = params.row?.role || 'user';
+          return (
+            <Chip 
+              label={role} 
+              color={
+                role === 'admin' ? 'primary' : 
+                role === 'subAdmin' ? 'secondary' : 
+                'default'
+              }
+              size="small"
+            />
+          );
+        }
+      },
+      { 
+        field: 'status', 
+        headerName: 'Status', 
+        width: 130,
+        renderCell: (params) => {
+          const status = params.row?.status || 'inactive';
+          return (
+            <Chip
+              label={status}
+              color={status === 'active' ? 'success' : 'error'}
+              size="small"
+            />
+          );
+        }
+      },
+      {
+        field: 'edit',
+        headerName: 'Edit',
+        width: 60,
+        renderCell: (params) => {
+          return (
+            <IconButton
+              onClick={() => handleEditUser(params.row)}
+              size="small"
+              color="primary"
+            >
+              <EditIcon />
+            </IconButton>
+          );
+        }
+      }
+    ];
+    
+    // Add assignment column for super admin
+    if (isSuperAdmin) {
+      baseColumns.push({
+        field: 'assignedTo',
+        headerName: 'Assigned To',
+        width: 150,
+        renderCell: (params) => {
+          const assignedTo = params.row?.assignedTo;
+          const assignedSubAdmin = subAdmins.find(admin => admin.id === assignedTo);
+          
+          return assignedSubAdmin ? (
+            <Chip
+              label={assignedSubAdmin.displayName || assignedSubAdmin.email}
+              color="info"
+              size="small"
+            />
+          ) : (
+            <span>Not assigned</span>
+          );
+        }
+      });
+      
+      baseColumns.push({
+        field: 'assign',
+        headerName: 'Assign',
+        width: 100,
+        renderCell: (params) => {
+          // Don't allow assigning admins or sub-admins
+          if (params.row?.role === 'admin' || params.row?.role === 'subAdmin') {
+            return null;
+          }
+          
+          return params.row?.assignedTo ? (
+            <Tooltip title="Unassign user">
+              <IconButton
+                onClick={() => handleUnassignUser(params.row)}
+                size="small"
+                color="error"
+              >
+                <UnassignIcon />
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <Tooltip title="Assign to sub-admin">
+              <IconButton
+                onClick={() => handleOpenAssignDialog(params.row)}
+                size="small"
+                color="primary"
+              >
+                <AssignIcon />
+              </IconButton>
+            </Tooltip>
+          );
+        }
+      });
+    }
+    
+    return baseColumns;
   };
 
   const handleEditUser = (user) => {
@@ -182,6 +292,53 @@ function Users() {
     setEditDialogOpen(true);
   };
 
+  const handleOpenAssignDialog = (user) => {
+    setAssigningUser(user);
+    setSelectedSubAdmin('');
+    setAssignDialogOpen(true);
+  };
+
+  const handleAssignUser = async () => {
+    if (!assigningUser || !selectedSubAdmin) return;
+    
+    try {
+      setLoading(true);
+      const { success, error } = await assignUserToSubAdmin(assigningUser.id, selectedSubAdmin);
+      
+      if (success) {
+        await fetchData();
+        setAssignDialogOpen(false);
+        showSnackbar('User assigned successfully', 'success');
+      } else {
+        showSnackbar(error || 'Failed to assign user', 'error');
+      }
+    } catch (err) {
+      console.error('Error assigning user:', err);
+      showSnackbar('Failed to assign user', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnassignUser = async (user) => {
+    try {
+      setLoading(true);
+      const { success, error } = await unassignUserFromSubAdmin(user.id);
+      
+      if (success) {
+        await fetchData();
+        showSnackbar('User unassigned successfully', 'success');
+      } else {
+        showSnackbar(error || 'Failed to unassign user', 'error');
+      }
+    } catch (err) {
+      console.error('Error unassigning user:', err);
+      showSnackbar('Failed to unassign user', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEditSubmit = async () => {
     if (!editingUser) return;
     
@@ -189,32 +346,17 @@ function Users() {
       setLoading(true);
       console.log('Updating user with data:', editForm);
       
-      const result = await updateUser(editingUser.id, {
+      const { success, error } = await updateUserData(editingUser.id, {
         ...editForm,
-        isAdmin: editForm.role === 'admin'
+        isAdmin: editForm.role === 'admin' || editForm.role === 'subAdmin'
       });
       
-      if (result.success) {
-        await fetchUsers();
+      if (success) {
+        await fetchData();
         setEditDialogOpen(false);
-        
-        // Handle case with warnings
-        if (result.warnings && result.warnings.length > 0) {
-          // Show warning message but still indicate success
-          showSnackbar(
-            `User updated with some limitations: ${result.warnings.join(', ')}`, 
-            'warning'
-          );
-        } else {
-          showSnackbar('User updated successfully', 'success');
-        }
+        showSnackbar('User updated successfully', 'success');
       } else {
-        // Handle validation errors specifically
-        if (result.validationErrors && result.validationErrors.length > 0) {
-          showSnackbar(`Validation error: ${result.validationErrors.join(', ')}`, 'error');
-        } else {
-          showSnackbar(result.error || 'Failed to update user', 'error');
-        }
+        showSnackbar(error || 'Failed to update user', 'error');
       }
     } catch (err) {
       console.error('Error updating user:', err);
@@ -222,6 +364,14 @@ function Users() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditForm({
+      ...editForm,
+      [name]: value
+    });
   };
 
   const showSnackbar = (message, severity) => {
@@ -235,12 +385,12 @@ function Users() {
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        User Management
+        {isSuperAdmin ? 'User Management' : 'Your Assigned Users'}
       </Typography>
       <Paper sx={{ height: 600, width: '100%' }}>
         <DataGrid
           rows={users}
-          columns={columns}
+          columns={getColumns()}
           pageSize={10}
           rowsPerPageOptions={[10]}
           loading={loading}
@@ -252,102 +402,136 @@ function Users() {
       </Paper>
       
       {/* Edit User Dialog */}
-      <Dialog 
-        open={editDialogOpen} 
-        onClose={() => setEditDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit User Details</DialogTitle>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit User</DialogTitle>
         <DialogContent>
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Display Name"
-            value={editForm.displayName}
-            onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Email"
-            value={editForm.email}
-            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Password"
-            type="password"
-            placeholder="Enter new password"
-            helperText="Leave empty to keep current password"
-            value={editForm.password}
-            onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Phone Number"
-            value={editForm.phone}
-            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Address"
-            value={editForm.address}
-            onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            label="Aadhar Card Number"
-            value={editForm.aadharCard}
-            onChange={(e) => setEditForm({ ...editForm, aadharCard: e.target.value })}
-            helperText="Enter 12 digits without spaces"
-            inputProps={{ maxLength: 12 }}
-          />
-          <TextField
-            margin="normal"
-            fullWidth
-            label="PAN Card Number"
-            value={editForm.panCard}
-            onChange={(e) => setEditForm({ ...editForm, panCard: e.target.value.toUpperCase() })}
-            helperText="Format: ABCDE1234F (5 letters, 4 digits, 1 letter)"
-            inputProps={{ maxLength: 10 }}
-          />
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Role</InputLabel>
-            <Select
-              value={editForm.role}
-              onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-              label="Role"
-            >
-              <MenuItem value="user">User</MenuItem>
-              <MenuItem value="subAdmin">Sub Admin</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl fullWidth margin="normal">
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={editForm.status}
-              onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-              label="Status"
-            >
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
-            </Select>
-          </FormControl>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+            <TextField
+              label="Name"
+              name="displayName"
+              value={editForm.displayName}
+              onChange={handleEditFormChange}
+              fullWidth
+            />
+            <TextField
+              label="Email"
+              name="email"
+              type="email"
+              value={editForm.email}
+              onChange={handleEditFormChange}
+              fullWidth
+              disabled={!isSuperAdmin} // Only super admin can change email
+            />
+            <FormControl fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select
+                name="role"
+                value={editForm.role}
+                onChange={handleEditFormChange}
+                label="Role"
+                disabled={!isSuperAdmin} // Only super admin can change role
+              >
+                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="subAdmin">Sub Admin</MenuItem>
+                {isSuperAdmin && <MenuItem value="admin">Admin</MenuItem>}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                name="status"
+                value={editForm.status}
+                onChange={handleEditFormChange}
+                label="Status"
+              >
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="inactive">Inactive</MenuItem>
+                <MenuItem value="suspended">Suspended</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Phone"
+              name="phone"
+              value={editForm.phone}
+              onChange={handleEditFormChange}
+              fullWidth
+            />
+            <TextField
+              label="Address"
+              name="address"
+              value={editForm.address}
+              onChange={handleEditFormChange}
+              fullWidth
+              multiline
+              rows={2}
+            />
+            <TextField
+              label="Aadhar Card"
+              name="aadharCard"
+              value={editForm.aadharCard}
+              onChange={handleEditFormChange}
+              fullWidth
+            />
+            <TextField
+              label="PAN Card"
+              name="panCard"
+              value={editForm.panCard}
+              onChange={handleEditFormChange}
+              fullWidth
+            />
+            {isSuperAdmin && (
+              <TextField
+                label="New Password (leave blank to keep unchanged)"
+                name="password"
+                type="password"
+                value={editForm.password}
+                onChange={handleEditFormChange}
+                fullWidth
+              />
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleEditSubmit} variant="contained" color="primary">
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Assign User Dialog */}
+      <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
+        <DialogTitle>Assign User to Sub-Admin</DialogTitle>
+        <DialogContent>
+          <Box sx={{ minWidth: 300, mt: 2 }}>
+            <Typography variant="body1" gutterBottom>
+              Assign {assigningUser?.displayName || assigningUser?.email || 'user'} to:
+            </Typography>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Select Sub-Admin</InputLabel>
+              <Select
+                value={selectedSubAdmin}
+                onChange={(e) => setSelectedSubAdmin(e.target.value)}
+                label="Select Sub-Admin"
+              >
+                {subAdmins.map((admin) => (
+                  <MenuItem key={admin.id} value={admin.id}>
+                    {admin.displayName || admin.email}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
           <Button 
-            onClick={handleEditSubmit} 
+            onClick={handleAssignUser} 
             variant="contained" 
-            disabled={loading}
+            color="primary"
+            disabled={!selectedSubAdmin}
           >
-            {loading ? 'Saving...' : 'Save Changes'}
+            Assign
           </Button>
         </DialogActions>
       </Dialog>
@@ -357,12 +541,9 @@ function Users() {
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity}>
           {snackbar.message}
         </Alert>
       </Snackbar>

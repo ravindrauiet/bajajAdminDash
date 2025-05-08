@@ -11,6 +11,8 @@ export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isSubAdmin, setIsSubAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -26,6 +28,11 @@ export function AuthProvider({ children }) {
       setCurrentUser(currentUser);
       setUserData(userData);
       setIsAdmin(isAdmin);
+      
+      // Set more specific role flags
+      setIsSuperAdmin(userData?.isSuperAdmin === true);
+      setIsSubAdmin(userData?.role === 'subAdmin');
+      
       setLoading(false);
     });
 
@@ -68,6 +75,8 @@ export function AuthProvider({ children }) {
         setCurrentUser(null);
         setUserData(null);
         setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setIsSubAdmin(false);
       } else {
         console.error('❌ Logout failed in AuthContext:', error);
         setError(error);
@@ -84,6 +93,8 @@ export function AuthProvider({ children }) {
     currentUser,
     userData,
     isAdmin,
+    isSuperAdmin,
+    isSubAdmin,
     loading,
     error,
     login,
