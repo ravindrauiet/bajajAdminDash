@@ -11,6 +11,8 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { updatePassword } from 'firebase/auth';
+import { auth } from '../firebase/config';
 
 // User Management Functions
 export const createOrUpdateUser = async (userId, userData) => {
@@ -82,10 +84,19 @@ export const updateUserData = async (userId, userData) => {
   try {
     console.log('📝 Updating user:', { userId, ...userData });
     const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      ...userData,
-      updatedAt: serverTimestamp()
-    });
+    const updatedData = { ...userData, updatedAt: serverTimestamp() };
+    delete updatedData.password; // Remove password from Firestore update
+    await updateDoc(userRef, updatedData);
+
+    // If password is provided, update it in Firebase Auth
+    if (userData.password) {
+      const user = auth.currentUser;
+      if (user) {
+        await updatePassword(user, userData.password);
+        console.log('✅ User password updated successfully');
+      }
+    }
+
     console.log('✅ User updated successfully');
     return { success: true };
   } catch (error) {

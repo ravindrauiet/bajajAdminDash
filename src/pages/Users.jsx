@@ -10,103 +10,122 @@ import {
   Select,
   MenuItem,
   FormControl,
-  InputLabel
+  InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Chip
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import { Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material';
-import { getAllUsers, updateUserStatus, updateUserRole, deleteUser } from '../firebase/userService';
-
-const columns = [
-  { field: 'id', headerName: 'ID', width: 90 },
-  { field: 'displayName', headerName: 'Name', width: 150 },
-  { field: 'email', headerName: 'Email', width: 200 },
-  {
-    field: 'role',
-    headerName: 'Role',
-    width: 130,
-    renderCell: (params) => (
-      <FormControl size="small" sx={{ minWidth: 120 }}>
-        <Select
-          value={params.value || 'user'}
-          onChange={(e) => handleRoleChange(params.row.id, e.target.value)}
-          size="small"
-        >
-          <MenuItem value="user">User</MenuItem>
-          <MenuItem value="admin">Admin</MenuItem>
-        </Select>
-      </FormControl>
-    ),
-  },
-  {
-    field: 'status',
-    headerName: 'Status',
-    width: 130,
-    renderCell: (params) => (
-      <Box
-        sx={{
-          backgroundColor: params.value === 'active' ? 'success.light' : 'error.light',
-          color: 'white',
-          padding: '4px 8px',
-          borderRadius: '4px',
-        }}
-      >
-        {params.value || 'inactive'}
-      </Box>
-    ),
-  },
-  {
-    field: 'createdAt',
-    headerName: 'Created At',
-    width: 180,
-    valueGetter: (params) => {
-      const date = params.value?.toDate();
-      return date ? date.toLocaleString() : 'N/A';
-    },
-  },
-  {
-    field: 'actions',
-    headerName: 'Actions',
-    width: 130,
-    renderCell: (params) => (
-      <Box>
-        <Tooltip title="Toggle Status">
-          <IconButton
-            onClick={() => handleStatusChange(params.row)}
-            size="small"
-          >
-            <EditIcon />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Delete">
-          <IconButton
-            onClick={() => handleDelete(params.row.id)}
-            size="small"
-            color="error"
-          >
-            <DeleteIcon />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    ),
-  },
-];
+import { Edit as EditIcon } from '@mui/icons-material';
+import { getAllUsers, updateUser } from '../firebase/userService';
 
 function Users() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editForm, setEditForm] = useState({
+    displayName: '',
+    email: '',
+    role: 'user',
+    status: 'active',
+    phone: '',
+    address: ''
+  });
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
+  // Define columns for the data grid
+  const columns = [
+    { 
+      field: 'id', 
+      headerName: 'ID', 
+      width: 90 
+    },
+    { 
+      field: 'displayName', 
+      headerName: 'Name', 
+      width: 150,
+      renderCell: (params) => {
+        return <span>{params.row?.displayName || 'No Name'}</span>;
+      }
+    },
+    { 
+      field: 'email', 
+      headerName: 'Email', 
+      width: 200,
+      renderCell: (params) => {
+        return <span>{params.row?.email || 'No Email'}</span>;
+      }
+    },
+    { 
+      field: 'role', 
+      headerName: 'Role', 
+      width: 130,
+      renderCell: (params) => {
+        const role = params.row?.role || 'user';
+        return (
+          <Chip 
+            label={role} 
+            color={
+              role === 'admin' ? 'primary' : 
+              role === 'subAdmin' ? 'secondary' : 
+              'default'
+            }
+            size="small"
+          />
+        );
+      }
+    },
+    { 
+      field: 'status', 
+      headerName: 'Status', 
+      width: 130,
+      renderCell: (params) => {
+        const status = params.row?.status || 'inactive';
+        return (
+          <Chip
+            label={status}
+            color={status === 'active' ? 'success' : 'error'}
+            size="small"
+          />
+        );
+      }
+    },
+    {
+      field: 'actions',
+      headerName: 'Edit',
+      width: 100,
+      renderCell: (params) => {
+        return (
+          <IconButton
+            onClick={() => handleEditUser(params.row)}
+            size="small"
+            color="primary"
+          >
+            <EditIcon />
+          </IconButton>
+        );
+      }
+    },
+  ];
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
       const usersData = await getAllUsers();
+      console.log('Fetched users:', usersData);
       setUsers(usersData);
     } catch (err) {
+      console.error('Error fetching users:', err);
       setError('Failed to fetch users');
       showSnackbar('Failed to fetch users', 'error');
     } finally {
@@ -114,36 +133,49 @@ function Users() {
     }
   };
 
-  const handleStatusChange = async (user) => {
-    try {
-      const newStatus = user.status === 'active' ? 'inactive' : 'active';
-      await updateUserStatus(user.id, newStatus);
-      await fetchUsers();
-      showSnackbar('User status updated successfully', 'success');
-    } catch (err) {
-      showSnackbar('Failed to update user status', 'error');
+  const handleEditUser = (user) => {
+    console.log('Editing user:', user);
+    if (!user) {
+      console.error('Cannot edit undefined user');
+      return;
     }
+    
+    setEditingUser(user);
+    setEditForm({
+      displayName: user.displayName || '',
+      email: user.email || '',
+      role: user.role || 'user',
+      status: user.status || 'active',
+      phone: user.phone || '',
+      address: user.address || ''
+    });
+    setEditDialogOpen(true);
   };
 
-  const handleRoleChange = async (userId, newRole) => {
+  const handleEditSubmit = async () => {
+    if (!editingUser) return;
+    
     try {
-      await updateUserRole(userId, newRole);
-      await fetchUsers();
-      showSnackbar('User role updated successfully', 'success');
-    } catch (err) {
-      showSnackbar('Failed to update user role', 'error');
-    }
-  };
-
-  const handleDelete = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        await deleteUser(userId);
+      setLoading(true);
+      console.log('Updating user with data:', editForm);
+      
+      const result = await updateUser(editingUser.id, {
+        ...editForm,
+        isAdmin: editForm.role === 'admin'
+      });
+      
+      if (result.success) {
         await fetchUsers();
-        showSnackbar('User deleted successfully', 'success');
-      } catch (err) {
-        showSnackbar('Failed to delete user', 'error');
+        setEditDialogOpen(false);
+        showSnackbar('User updated successfully', 'success');
+      } else {
+        showSnackbar(result.error || 'Failed to update user', 'error');
       }
+    } catch (err) {
+      console.error('Error updating user:', err);
+      showSnackbar('Failed to update user', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -166,12 +198,88 @@ function Users() {
           columns={columns}
           pageSize={10}
           rowsPerPageOptions={[10]}
-          checkboxSelection
-          disableSelectionOnClick
           loading={loading}
           error={error}
+          getRowId={(row) => row.id}
+          disableColumnMenu
+          disableSelectionOnClick
         />
       </Paper>
+      
+      {/* Edit User Dialog */}
+      <Dialog 
+        open={editDialogOpen} 
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit User Details</DialogTitle>
+        <DialogContent>
+          <TextField
+            margin="normal"
+            fullWidth
+            label="Display Name"
+            value={editForm.displayName}
+            onChange={(e) => setEditForm({ ...editForm, displayName: e.target.value })}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
+            label="Email"
+            value={editForm.email}
+            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
+            label="Phone Number"
+            value={editForm.phone}
+            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+          />
+          <TextField
+            margin="normal"
+            fullWidth
+            label="Address"
+            value={editForm.address}
+            onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+          />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Role</InputLabel>
+            <Select
+              value={editForm.role}
+              onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+              label="Role"
+            >
+              <MenuItem value="user">User</MenuItem>
+              <MenuItem value="subAdmin">Sub Admin</MenuItem>
+              <MenuItem value="admin">Admin</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={editForm.status}
+              onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+              label="Status"
+            >
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="inactive">Inactive</MenuItem>
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleEditSubmit} 
+            variant="contained" 
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}

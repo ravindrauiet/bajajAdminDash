@@ -110,4 +110,30 @@ export const getUserById = async (userId) => {
     console.error('Error getting user:', error);
     throw error;
   }
+};
+
+// Update user (all fields)
+export const updateUser = async (userId, userData) => {
+  try {
+    console.log('📝 Updating user details:', { userId, ...userData });
+    const userRef = doc(db, 'users', userId);
+    
+    // Prepare data for update
+    const updateData = {
+      ...userData,
+      updatedAt: serverTimestamp()
+    };
+    
+    // Remove password if it exists (password updates should be handled separately)
+    if (updateData.password) {
+      delete updateData.password;
+    }
+    
+    await updateDoc(userRef, updateData);
+    console.log('✅ User details updated successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error updating user details:', error);
+    return { success: false, error: error.message };
+  }
 }; 
