@@ -14,6 +14,7 @@ import FastagManagement from './pages/FastagManagement';
 import AssignmentLogs from './components/AssignmentLogs';
 import ActivityHistory from './components/ActivityHistory';
 import FastagRegistrationHistory from './pages/FastagRegistrationHistory';
+import WalletTopupRequests from './pages/WalletTopupRequests';
 
 const theme = createTheme({
   palette: {
@@ -196,6 +197,18 @@ function AppRoutes() {
               <Analytics />
             </Layout>
           </AdminOrSubAdminRoute>
+        }
+      />
+      
+      {/* Wallet top-up requests - accessible by super admin */}
+      <Route
+        path="/wallet-topups"
+        element={
+          <AdminRoute>
+            <Layout>
+              <WalletTopupRequests />
+            </Layout>
+          </AdminRoute>
         }
       />
       

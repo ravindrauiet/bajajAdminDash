@@ -18,7 +18,8 @@ import {
   Assignment as AssignmentIcon,
   BarChart as AnalyticsIcon,
   Settings as SettingsIcon,
-  ListAlt as RegistrationHistoryIcon
+  ListAlt as RegistrationHistoryIcon,
+  AccountBalanceWallet as WalletIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,6 +40,12 @@ const AdminMenu = () => {
       icon: <PeopleIcon />,
       path: '/users',
       adminOnly: false
+    },
+    {
+      text: 'Wallet Top-ups',
+      icon: <WalletIcon />,
+      path: '/wallet-topups',
+      adminOnly: true
     },
     {
       text: 'FastTag Management',
