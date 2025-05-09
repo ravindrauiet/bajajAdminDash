@@ -5,51 +5,23 @@ import {
   Drawer,
   AppBar,
   Toolbar,
-  List,
   Typography,
   Divider,
   IconButton,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Avatar,
   Menu,
   MenuItem,
-  Button,
   Tooltip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Dashboard as DashboardIcon,
-  People as PeopleIcon,
-  Group as GroupIcon,
-  BarChart as BarChartIcon,
-  Settings as SettingsIcon,
-  ExitToApp as LogoutIcon,
   Person as PersonIcon,
-  SupervisorAccount as AdminIcon,
-  LocalShipping as FastagIcon
+  ExitToApp as LogoutIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import AdminMenu from './AdminMenu';
 
 const drawerWidth = 240;
-
-// Menu items for super admin
-const adminMenuItems = [
-  { text: 'Admin Dashboard', icon: <AdminIcon />, path: '/admin' },
-  { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
-  { text: 'FasTag Management', icon: <FastagIcon />, path: '/fastag-management' },
-  { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-];
-
-// Menu items for sub-admin
-const subAdminMenuItems = [
-  { text: 'Sub-Admin Dashboard', icon: <DashboardIcon />, path: '/subadmin' },
-  { text: 'FasTag Management', icon: <FastagIcon />, path: '/fastag-management' },
-  { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
-];
 
 function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -79,18 +51,18 @@ function Layout({ children }) {
     }
   };
   
-  // Determine which menu items to show based on user role
-  const menuItems = userData?.isSuperAdmin === true ? adminMenuItems : subAdminMenuItems;
-  
   // Get the title for the current page
   const getPageTitle = () => {
-    const item = menuItems.find((item) => item.path === location.pathname);
-    if (item) return item.text;
-    
-    // Fallback based on the path
+    // Common paths
     if (location.pathname === '/admin') return 'Admin Dashboard';
     if (location.pathname === '/subadmin') return 'Sub-Admin Dashboard';
-    if (location.pathname === '/') return 'Dashboard';
+    if (location.pathname === '/dashboard') return 'Dashboard';
+    if (location.pathname === '/users') return 'User Management';
+    if (location.pathname === '/fastag-management') return 'FastTag Management';
+    if (location.pathname === '/analytics') return 'Analytics';
+    if (location.pathname === '/settings') return 'Settings';
+    if (location.pathname === '/assignment-logs') return 'Assignment Logs';
+    if (location.pathname === '/activity-history') return 'Activity History';
     
     // Default fallback
     return 'Dashboard';
@@ -98,48 +70,7 @@ function Layout({ children }) {
 
   const drawer = (
     <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          {userData?.isSuperAdmin ? 'Admin Dashboard' : 'Sub-Admin Portal'}
-        </Typography>
-      </Toolbar>
-      <Divider />
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => {
-                // For dashboard items, navigate based on role
-                if (item.text.toLowerCase().includes('dashboard')) {
-                  if (userData?.isSuperAdmin === true) {
-                    navigate('/admin');
-                  } else if (userData?.role === 'subAdmin') {
-                    navigate('/subadmin');
-                  } else {
-                    navigate('/dashboard');
-                  }
-                } else {
-                  // For other items, use the path from the menuItem
-                  navigate(item.path);
-                }
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-      <Divider />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton onClick={handleLogout}>
-            <ListItemIcon><LogoutIcon /></ListItemIcon>
-            <ListItemText primary="Logout" />
-          </ListItemButton>
-        </ListItem>
-      </List>
+      <AdminMenu />
     </div>
   );
 

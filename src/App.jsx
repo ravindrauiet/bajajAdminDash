@@ -11,6 +11,8 @@ import Settings from './pages/Settings';
 import AdminDashboard from './pages/AdminDashboard';
 import SubAdminDashboard from './pages/SubAdminDashboard';
 import FastagManagement from './pages/FastagManagement';
+import AssignmentLogs from './components/AssignmentLogs';
+import ActivityHistory from './components/ActivityHistory';
 
 const theme = createTheme({
   palette: {
@@ -216,6 +218,30 @@ function AppRoutes() {
               <FastagManagement />
             </Layout>
           </AdminOrSubAdminRoute>
+        }
+      />
+      
+      {/* Assignment Logs - Super Admin Only */}
+      <Route
+        path="/assignment-logs"
+        element={
+          <AdminRoute>
+            <Layout>
+              <AssignmentLogs />
+            </Layout>
+          </AdminRoute>
+        }
+      />
+      
+      {/* Activity History - Super Admin Only */}
+      <Route
+        path="/activity-history"
+        element={
+          <AdminRoute>
+            <Layout>
+              <ActivityHistory />
+            </Layout>
+          </AdminRoute>
         }
       />
       
