@@ -115,9 +115,10 @@ const FastagManagement = () => {
 
   const fetchSubadmins = async () => {
     try {
+      // Query specifically for subadmin users
       const usersQuery = query(
         collection(db, 'users'),
-        where('role', 'in', ['admin', 'subadmin'])
+        where('role', '==', 'subAdmin')
       );
       
       const querySnapshot = await getDocs(usersQuery);
@@ -130,6 +131,7 @@ const FastagManagement = () => {
         });
       });
       
+      console.log('Fetched subadmins:', adminList);
       setSubadmins(adminList);
     } catch (error) {
       console.error('Error fetching subadmins:', error);
@@ -292,6 +294,63 @@ const FastagManagement = () => {
       <Box sx={{ py: 4 }}>
         <Typography variant="h4" gutterBottom>FastTag Management</Typography>
 
+        {/* Stats Dashboard */}
+        <Paper sx={{ p: 2, mb: 3, backgroundColor: '#f5f5f5' }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>FastTag Overview</Typography>
+            </Grid>
+            <Grid item xs={6} sm={2}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+                <Typography variant="h5">
+                  {fastags.filter(tag => tag.status === 'available').length}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Available</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+                <Typography variant="h5">
+                  {fastags.filter(tag => tag.status === 'assigned').length}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Assigned</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+                <Typography variant="h5">
+                  {fastags.filter(tag => tag.status === 'active').length}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Active</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#ffebee' }}>
+                <Typography variant="h5">
+                  {fastags.filter(tag => tag.status === 'inactive').length}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Inactive</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff8e1' }}>
+                <Typography variant="h5">
+                  {fastags.filter(tag => tag.status === 'pending').length}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Pending</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fafafa' }}>
+                <Typography variant="h5">
+                  {fastags.length}
+                </Typography>
+                <Typography variant="body2" color="textSecondary">Total</Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+        </Paper>
+
         {/* Filter and Search */}
         <Paper sx={{ p: 2, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
@@ -388,9 +447,17 @@ const FastagManagement = () => {
                     <TableCell>{fastag.vehicleNo || '-'}</TableCell>
                     <TableCell>{fastag.mobileNo || '-'}</TableCell>
                     <TableCell>
-                      {fastag.assignedTo
-                        ? subadmins.find(admin => admin.id === fastag.assignedTo)?.name || fastag.assignedTo
-                        : '-'}
+                      {fastag.assignedTo ? (
+                        <Chip
+                          label={subadmins.find(admin => admin.id === fastag.assignedTo)?.displayName || 
+                                subadmins.find(admin => admin.id === fastag.assignedTo)?.email || 
+                                fastag.assignedTo}
+                          color="info"
+                          size="small"
+                        />
+                      ) : (
+                        <span>Not assigned</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {fastag.createdAt
@@ -471,13 +538,23 @@ const FastagManagement = () => {
                     onChange={handleInputChange}
                     label="Assign To"
                   >
-                    <MenuItem value="">None</MenuItem>
-                    {subadmins.map((admin) => (
-                      <MenuItem key={admin.id} value={admin.id}>
-                        {admin.name || admin.email}
-                      </MenuItem>
-                    ))}
+                    <MenuItem value="">
+                      <em>None (Not Assigned)</em>
+                    </MenuItem>
+                    {subadmins.length === 0 ? (
+                      <MenuItem disabled>No sub-admins available</MenuItem>
+                    ) : (
+                      subadmins.map((admin) => (
+                        <MenuItem key={admin.id} value={admin.id}>
+                          {admin.displayName || admin.email || admin.id} 
+                          {admin.email && admin.displayName && ` (${admin.email})`}
+                        </MenuItem>
+                      ))
+                    )}
                   </Select>
+                  <Typography variant="caption" color="textSecondary" sx={{ mt: 1, display: 'block' }}>
+                    Assigning a FastTag will make it available for use by the selected sub-admin.
+                  </Typography>
                 </FormControl>
               </Stack>
             </Box>
