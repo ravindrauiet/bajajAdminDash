@@ -28,7 +28,8 @@ import {
   Settings as SettingsIcon,
   ExitToApp as LogoutIcon,
   Person as PersonIcon,
-  SupervisorAccount as AdminIcon
+  SupervisorAccount as AdminIcon,
+  LocalShipping as FastagIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,6 +39,7 @@ const drawerWidth = 240;
 const adminMenuItems = [
   { text: 'Admin Dashboard', icon: <AdminIcon />, path: '/admin' },
   { text: 'User Management', icon: <PeopleIcon />, path: '/users' },
+  { text: 'FasTag Management', icon: <FastagIcon />, path: '/fastag-management' },
   { text: 'Analytics', icon: <BarChartIcon />, path: '/analytics' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
@@ -45,6 +47,7 @@ const adminMenuItems = [
 // Menu items for sub-admin
 const subAdminMenuItems = [
   { text: 'Sub-Admin Dashboard', icon: <DashboardIcon />, path: '/subadmin' },
+  { text: 'FasTag Management', icon: <FastagIcon />, path: '/fastag-management' },
   { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 

@@ -10,6 +10,7 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import AdminDashboard from './pages/AdminDashboard';
 import SubAdminDashboard from './pages/SubAdminDashboard';
+import FastagManagement from './pages/FastagManagement';
 
 const theme = createTheme({
   palette: {
@@ -201,6 +202,18 @@ function AppRoutes() {
           <AdminOrSubAdminRoute>
             <Layout>
               <Settings />
+            </Layout>
+          </AdminOrSubAdminRoute>
+        }
+      />
+      
+      {/* Fastag Management */}
+      <Route
+        path="/fastag-management"
+        element={
+          <AdminOrSubAdminRoute>
+            <Layout>
+              <FastagManagement />
             </Layout>
           </AdminOrSubAdminRoute>
         }
