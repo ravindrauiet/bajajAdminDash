@@ -27,7 +27,7 @@ import {
 import {
   CheckCircle as ApproveIcon,
   Cancel as RejectIcon,
-  Visibility as ViewIcon,
+  Image as ImageIcon,
   Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { getFirestore, collection, getDocs, doc, updateDoc, getDoc, runTransaction, query, orderBy, where } from 'firebase/firestore';
@@ -51,8 +51,8 @@ const statusColors = {
 function WalletTopupRequests() {
   const [topupRequests, setTopupRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [imageDialogOpen, setImageDialogOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState('');
+  const [imageNameDialogOpen, setImageNameDialogOpen] = useState(false);
+  const [selectedImageName, setSelectedImageName] = useState('');
   const [rejectionDialogOpen, setRejectionDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [selectedRequestId, setSelectedRequestId] = useState(null);
@@ -115,9 +115,9 @@ function WalletTopupRequests() {
     }
   };
 
-  const handleViewImage = (imageUrl) => {
-    setSelectedImage(imageUrl);
-    setImageDialogOpen(true);
+  const handleViewImageName = (imageName) => {
+    setSelectedImageName(imageName);
+    setImageNameDialogOpen(true);
   };
 
   const handleApproveRequest = async (requestId) => {
@@ -160,6 +160,22 @@ function WalletTopupRequests() {
           status: 'approved',
           updatedAt: new Date(),
           adminNote: 'Approved and added to wallet balance'
+        });
+        
+        // Create a transaction record
+        const transactionRef = doc(collection(db, 'transactions'));
+        transaction.set(transactionRef, {
+          userId: userId,
+          userName: requestData.userName || userData.displayName || 'User',
+          type: 'recharge',
+          method: 'wallet_topup',
+          amount: amount,
+          status: 'success',
+          description: 'Wallet top-up via UPI',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          relatedDocId: requestId,
+          collection: 'wallet_topups'
         });
       });
       
@@ -329,14 +345,16 @@ function WalletTopupRequests() {
                       {formatDistanceToNow(request.createdAt, { addSuffix: true })}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<ViewIcon />}
-                        onClick={() => handleViewImage(request.screenshotUrl)}
-                      >
-                        View
-                      </Button>
+                      <Tooltip title={request.screenshotName || "No screenshot name"}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<ImageIcon />}
+                          onClick={() => handleViewImageName(request.screenshotName)}
+                        >
+                          View Name
+                        </Button>
+                      </Tooltip>
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -390,24 +408,19 @@ function WalletTopupRequests() {
         />
       </TableContainer>
 
-      {/* Image Dialog */}
+      {/* Image Name Dialog */}
       <Dialog
-        open={imageDialogOpen}
-        onClose={() => setImageDialogOpen(false)}
-        maxWidth="md"
+        open={imageNameDialogOpen}
+        onClose={() => setImageNameDialogOpen(false)}
       >
-        <DialogTitle>Payment Screenshot</DialogTitle>
+        <DialogTitle>Screenshot Filename</DialogTitle>
         <DialogContent>
-          {selectedImage && (
-            <img
-              src={selectedImage}
-              alt="Payment Screenshot"
-              style={{ width: '100%', maxHeight: '70vh' }}
-            />
-          )}
+          <Typography>
+            {selectedImageName || "No filename available"}
+          </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setImageDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setImageNameDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
