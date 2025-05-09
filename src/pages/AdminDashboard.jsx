@@ -35,7 +35,8 @@ import {
   PersonAdd as PersonAddIcon,
   SupervisorAccount as AdminIcon,
   Dashboard as DashboardIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  LocalShipping as FastagIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -45,13 +46,17 @@ import {
   createOrUpdateUser,
   getUsersBySubAdmin 
 } from '../api/firestoreApi';
+import FastagAssignmentOverview from '../components/FastagAssignmentOverview';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
 function AdminDashboard() {
   const { currentUser } = useAuth();
+  const db = getFirestore();
   
   // State for users and sub-admins
   const [users, setUsers] = useState([]);
   const [subAdmins, setSubAdmins] = useState([]);
+  const [fastags, setFastags] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // UI state
@@ -88,6 +93,21 @@ function AdminDashboard() {
       const { success: adminsSuccess, subAdmins: admins } = await getSubAdmins();
       if (adminsSuccess) {
         setSubAdmins(admins);
+      }
+      
+      // Fetch FastTags count
+      try {
+        const fastagRef = collection(db, 'fastags');
+        const fastagSnapshot = await getDocs(fastagRef);
+        const fastagList = [];
+        
+        fastagSnapshot.forEach((doc) => {
+          fastagList.push({ id: doc.id, ...doc.data() });
+        });
+        
+        setFastags(fastagList);
+      } catch (error) {
+        console.error('Error fetching FastTags:', error);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -166,6 +186,8 @@ function AdminDashboard() {
   const totalUsers = users.filter(user => user.role !== 'admin' && user.role !== 'subAdmin').length;
   const totalSubAdmins = subAdmins.length;
   const activeUsers = users.filter(user => user.status === 'active' && user.role !== 'admin' && user.role !== 'subAdmin').length;
+  const totalFastags = fastags.length;
+  const assignedFastags = fastags.filter(fastag => fastag.assignedTo).length;
 
   return (
     <Box>
@@ -175,7 +197,7 @@ function AdminDashboard() {
       
       {/* Stats at the top */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', height: 140, bgcolor: 'primary.light', color: 'white' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="h6" gutterBottom>
@@ -189,7 +211,7 @@ function AdminDashboard() {
           </Paper>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', height: 140, bgcolor: 'secondary.light', color: 'white' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="h6" gutterBottom>
@@ -203,7 +225,7 @@ function AdminDashboard() {
           </Paper>
         </Grid>
         
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', height: 140, bgcolor: 'success.light', color: 'white' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
               <Typography variant="h6" gutterBottom>
@@ -213,6 +235,23 @@ function AdminDashboard() {
             </Box>
             <Typography variant="h3" component="div" sx={{ mt: 'auto' }}>
               {activeUsers}
+            </Typography>
+          </Paper>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column', height: 140, bgcolor: 'info.light', color: 'white' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Typography variant="h6" gutterBottom>
+                FastTags
+              </Typography>
+              <FastagIcon fontSize="large" />
+            </Box>
+            <Typography variant="h3" component="div" sx={{ mt: 'auto' }}>
+              {totalFastags}
+            </Typography>
+            <Typography variant="body2" component="div">
+              {assignedFastags} assigned
             </Typography>
           </Paper>
         </Grid>
@@ -227,6 +266,7 @@ function AdminDashboard() {
         >
           <Tab label="Sub-Admin Management" />
           <Tab label="User Assignment Overview" />
+          <Tab label="FastTag Assignment Overview" />
         </Tabs>
       </Paper>
       
@@ -410,6 +450,11 @@ function AdminDashboard() {
               )}
             </Grid>
           </Paper>
+        )}
+        
+        {/* FastTag Assignment Overview Tab */}
+        {selectedTab === 2 && (
+          <FastagAssignmentOverview />
         )}
       </Box>
       
