@@ -25,11 +25,20 @@ import {
   ListItemIcon,
   ListItemText,
   Avatar,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import {
   Search as SearchIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  LocalShipping as FastagIcon,
+  Login as LoginIcon,
+  SupervisorAccount as AssignmentIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import { getFirestore, collection, query, getDocs, where, orderBy, limit } from 'firebase/firestore';
 
@@ -45,6 +54,10 @@ const ActivityHistory = () => {
   const [filter, setFilter] = useState({
     type: '',
     searchText: ''
+  });
+  const [detailDialog, setDetailDialog] = useState({
+    open: false,
+    activity: null
   });
 
   useEffect(() => {
@@ -80,44 +93,120 @@ const ActivityHistory = () => {
     }
   };
 
+  const fetchFastagRegistrationsForUser = async (userId) => {
+    try {
+      const fastagRef = collection(db, 'fastagRegistrations');
+      const q = query(fastagRef, where('user.uid', '==', userId));
+      const snapshot = await getDocs(q);
+      
+      const fastagActivities = [];
+      
+      snapshot.forEach(doc => {
+        const registration = doc.data();
+        
+        // Extract activities from each registration stage
+        if (registration.stages) {
+          Object.entries(registration.stages).forEach(([stageName, stageData]) => {
+            // Convert stage name to display name
+            let stageDisplayName = stageName;
+            switch (stageName) {
+              case 'validate-customer':
+                stageDisplayName = 'Customer Validation';
+                break;
+              case 'validate-otp':
+                stageDisplayName = 'OTP Validation';
+                break;
+              case 'document-upload':
+                stageDisplayName = 'Document Upload';
+                break;
+              case 'manual-activation':
+                stageDisplayName = 'Manual Activation';
+                break;
+              case 'fastag-registration':
+                stageDisplayName = 'FasTag Registration';
+                break;
+            }
+            
+            // Create activity object
+            fastagActivities.push({
+              id: `${doc.id}-${stageName}`,
+              type: 'fastag_registration',
+              description: `Completed ${stageDisplayName} for vehicle ${registration.vehicleNo || 'Unknown'}`,
+              timestamp: stageData.timestamp,
+              data: {
+                stage: stageName,
+                vehicleNo: registration.vehicleNo || null,
+                mobileNo: registration.mobileNo || null,
+                sessionId: stageData.sessionId || null,
+                registrationId: doc.id
+              }
+            });
+          });
+        }
+      });
+      
+      return fastagActivities;
+    } catch (error) {
+      console.error('Error fetching FasTag registrations:', error);
+      return [];
+    }
+  };
+
   const fetchUserActivity = async (user) => {
     try {
       setLoading(true);
       setSelectedUser(user);
       
-      // Get user document
+      // Get user document for regular activities
       const userRef = collection(db, 'users');
       const q = query(userRef, where('__name__', '==', user.id));
       const userSnapshot = await getDocs(q);
       
+      let regularActivities = [];
+      
       if (!userSnapshot.empty) {
         const userData = userSnapshot.docs[0].data();
-        let activityHistory = userData.activityHistory || [];
-        
-        // Apply filters if needed
-        if (filter.type) {
-          activityHistory = activityHistory.filter(activity => activity.type === filter.type);
-        }
-        
-        if (filter.searchText) {
-          const searchLower = filter.searchText.toLowerCase();
-          activityHistory = activityHistory.filter(activity =>
-            activity.description.toLowerCase().includes(searchLower)
-          );
-        }
-        
-        // Sort by timestamp (most recent first)
-        activityHistory.sort((a, b) => {
-          const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
-          const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
-          return dateB - dateA;
-        });
-        
-        setActivities(activityHistory);
-      } else {
-        setActivities([]);
+        regularActivities = userData.activityHistory || [];
       }
       
+      // Get FasTag registration activities
+      const fastagActivities = await fetchFastagRegistrationsForUser(user.id);
+      
+      // Combine both types of activities
+      let allActivities = [...regularActivities, ...fastagActivities];
+      
+      // Apply filters if needed
+      if (filter.type) {
+        allActivities = allActivities.filter(activity => activity.type === filter.type);
+      }
+      
+      if (filter.searchText) {
+        const searchLower = filter.searchText.toLowerCase();
+        allActivities = allActivities.filter(activity =>
+          activity.description.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Sort by timestamp (most recent first)
+      allActivities.sort((a, b) => {
+        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
+        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
+        return dateB - dateA;
+      });
+      
+      // Update activity counts
+      const updatedUsers = users.map(u => {
+        if (u.id === user.id) {
+          return {
+            ...u,
+            activityCount: allActivities.length
+          };
+        }
+        return u;
+      });
+      
+      setUsers(updatedUsers);
+      setActivities(allActivities);
       setPage(0);
       setLoading(false);
     } catch (error) {
@@ -158,22 +247,33 @@ const ActivityHistory = () => {
 
   const getActivityTypeChip = (type) => {
     let color = 'default';
+    let label = type.replace('_', ' ');
+    let icon = <InfoIcon />;
     
     switch (type) {
       case 'login':
         color = 'success';
+        icon = <LoginIcon fontSize="small" />;
         break;
       case 'assignment':
         color = 'primary';
+        icon = <AssignmentIcon fontSize="small" />;
         break;
       case 'unassignment':
         color = 'warning';
+        icon = <AssignmentIcon fontSize="small" />;
         break;
       case 'status_change':
         color = 'info';
         break;
       case 'profile_update':
         color = 'secondary';
+        icon = <EditIcon fontSize="small" />;
+        break;
+      case 'fastag_registration':
+        color = 'primary';
+        icon = <FastagIcon fontSize="small" />;
+        label = 'FasTag Registration';
         break;
       default:
         color = 'default';
@@ -181,10 +281,112 @@ const ActivityHistory = () => {
     
     return (
       <Chip
-        label={type.replace('_', ' ')}
+        icon={icon}
+        label={label}
         color={color}
         size="small"
       />
+    );
+  };
+
+  const handleOpenDetails = (activity) => {
+    setDetailDialog({
+      open: true,
+      activity
+    });
+  };
+
+  const handleCloseDetails = () => {
+    setDetailDialog({
+      open: false,
+      activity: null
+    });
+  };
+
+  const renderActivityDetails = (activity) => {
+    if (!activity) return null;
+    
+    // Different rendering based on activity type
+    if (activity.type === 'fastag_registration') {
+      return (
+        <Grid container spacing={2}>
+          <Grid item xs={12}>
+            <Typography variant="h6">FasTag Registration Activity</Typography>
+            <Typography variant="body2" color="textSecondary">
+              {formatDate(activity.timestamp)}
+            </Typography>
+            <Divider sx={{ my: 1 }} />
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle2">Stage</Typography>
+            <Typography>{activity.data?.stage || 'Unknown'}</Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle2">Vehicle Number</Typography>
+            <Typography>{activity.data?.vehicleNo || 'N/A'}</Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle2">Mobile Number</Typography>
+            <Typography>{activity.data?.mobileNo || 'N/A'}</Typography>
+          </Grid>
+          
+          <Grid item xs={12} sm={6}>
+            <Typography variant="subtitle2">Session ID</Typography>
+            <Typography sx={{ wordBreak: 'break-all' }}>{activity.data?.sessionId || 'N/A'}</Typography>
+          </Grid>
+          
+          <Grid item xs={12}>
+            <Typography variant="subtitle2">Description</Typography>
+            <Typography>{activity.description}</Typography>
+          </Grid>
+          
+          {activity.data?.registrationId && (
+            <Grid item xs={12}>
+              <Typography variant="subtitle2">Registration ID</Typography>
+              <Typography sx={{ wordBreak: 'break-all' }}>{activity.data.registrationId}</Typography>
+            </Grid>
+          )}
+        </Grid>
+      );
+    }
+    
+    // Default rendering for other activity types
+    return (
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <Typography variant="h6">Activity Details</Typography>
+          <Typography variant="body2" color="textSecondary">
+            {formatDate(activity.timestamp)}
+          </Typography>
+          <Divider sx={{ my: 1 }} />
+        </Grid>
+        
+        <Grid item xs={12}>
+          <Typography variant="subtitle2">Type</Typography>
+          <Typography>{activity.type}</Typography>
+        </Grid>
+        
+        <Grid item xs={12}>
+          <Typography variant="subtitle2">Description</Typography>
+          <Typography>{activity.description}</Typography>
+        </Grid>
+        
+        {activity.data && (
+          <Grid item xs={12}>
+            <Typography variant="subtitle2">Additional Data</Typography>
+            <Box sx={{ pl: 2 }}>
+              {Object.entries(activity.data).map(([key, value]) => (
+                <Typography key={key} variant="body2">
+                  {key}: {typeof value === 'object' ? JSON.stringify(value) : value}
+                </Typography>
+              ))}
+            </Box>
+          </Grid>
+        )}
+      </Grid>
     );
   };
 
@@ -259,6 +461,7 @@ const ActivityHistory = () => {
                     <MenuItem value="unassignment">Unassignment</MenuItem>
                     <MenuItem value="status_change">Status Change</MenuItem>
                     <MenuItem value="profile_update">Profile Update</MenuItem>
+                    <MenuItem value="fastag_registration">FasTag Registration</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -308,7 +511,7 @@ const ActivityHistory = () => {
                       <TableCell>Date</TableCell>
                       <TableCell>Type</TableCell>
                       <TableCell>Description</TableCell>
-                      <TableCell>Performed By</TableCell>
+                      <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -327,11 +530,13 @@ const ActivityHistory = () => {
                             <TableCell>{getActivityTypeChip(activity.type)}</TableCell>
                             <TableCell>{activity.description}</TableCell>
                             <TableCell>
-                              <Tooltip title={activity.performedBy || 'System'}>
-                                <Typography variant="body2">
-                                  {activity.performedBy ? 'Admin' : 'System'}
-                                </Typography>
-                              </Tooltip>
+                              <IconButton 
+                                size="small" 
+                                color="primary"
+                                onClick={() => handleOpenDetails(activity)}
+                              >
+                                <InfoIcon />
+                              </IconButton>
                             </TableCell>
                           </TableRow>
                         ))
@@ -352,6 +557,22 @@ const ActivityHistory = () => {
           </Paper>
         </Grid>
       </Grid>
+      
+      {/* Activity Details Dialog */}
+      <Dialog 
+        open={detailDialog.open} 
+        onClose={handleCloseDetails}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Activity Details</DialogTitle>
+        <DialogContent dividers>
+          {renderActivityDetails(detailDialog.activity)}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetails}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
