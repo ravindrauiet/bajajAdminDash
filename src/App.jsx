@@ -13,6 +13,7 @@ import SubAdminDashboard from './pages/SubAdminDashboard';
 import FastagManagement from './pages/FastagManagement';
 import AssignmentLogs from './components/AssignmentLogs';
 import ActivityHistory from './components/ActivityHistory';
+import FastagRegistrationHistory from './pages/FastagRegistrationHistory';
 
 const theme = createTheme({
   palette: {
@@ -218,6 +219,18 @@ function AppRoutes() {
               <FastagManagement />
             </Layout>
           </AdminOrSubAdminRoute>
+        }
+      />
+      
+      {/* FasTag Registration History - Super Admin Only */}
+      <Route
+        path="/fastag-registration-history"
+        element={
+          <AdminRoute>
+            <Layout>
+              <FastagRegistrationHistory />
+            </Layout>
+          </AdminRoute>
         }
       />
       

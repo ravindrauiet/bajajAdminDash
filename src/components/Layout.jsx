@@ -63,6 +63,7 @@ function Layout({ children }) {
     if (location.pathname === '/settings') return 'Settings';
     if (location.pathname === '/assignment-logs') return 'Assignment Logs';
     if (location.pathname === '/activity-history') return 'Activity History';
+    if (location.pathname === '/fastag-registration-history') return 'FasTag Registration History';
     
     // Default fallback
     return 'Dashboard';

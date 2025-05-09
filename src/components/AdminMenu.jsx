@@ -17,7 +17,8 @@ import {
   History as HistoryIcon,
   Assignment as AssignmentIcon,
   BarChart as AnalyticsIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  ListAlt as RegistrationHistoryIcon
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -44,6 +45,12 @@ const AdminMenu = () => {
       icon: <FastagIcon />,
       path: '/fastag-management',
       adminOnly: false
+    },
+    {
+      text: 'FasTag Registration History',
+      icon: <RegistrationHistoryIcon />,
+      path: '/fastag-registration-history',
+      adminOnly: true
     },
     {
       text: 'Assignment Logs',
